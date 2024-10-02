@@ -1,14 +1,23 @@
 ---
 # $yaml-language-server: $schema=https://raw.githubusercontent.com/buildkite/pipeline-schema/main/schema.json
+
 steps:
   - label: "Build"
-    command: "true"
+    key: build
+    command: "./.buildkite/scripts/build.sh"
+    artifact_paths:
+      - "libquark_big_amd64.a"
+      - "libquark_big_arm64.a"
+    agents:
+      image: family/core-ubuntu-2004
+      provider: gcp
+      machineType: n2-standard-2
 
-  - label: "Test"
-    command: "true"
-
-  - label: "Deploy"
-    command: "true"
-
-  - label: "Publish"
-    command: "true"
+  - label: "Commit"
+    depends_on: build
+    key: commit
+    command: "./.buildkite/scripts/commit.sh"
+    agents:
+     image: "docker.elastic.co/ci-agent-images/sec-linux-platform/cloud-defend-builder@sha256:623a0d998dd6ebde09c7b7bbb829e3ba95b5475a0702ab35a5c6049775226f37"
+     cpu: "1"
+     memory: "1Gi"
