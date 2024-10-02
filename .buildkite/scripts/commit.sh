@@ -4,6 +4,9 @@ set -euo pipefail
 
 # Commit modified .a files to the same branch that was built
 
+BOT_NAME ?= "buildkite-bot"
+BOT_EMAIL ?= "buildkite-bot@noreply.elastic.co"
+
 function download {
 	buildkite-agent artifact download "$1" "$2"
 }
@@ -18,8 +21,14 @@ if ! git diff --name-only HEAD^ HEAD | grep -q -E '\.a$'; then
 	exit 0
 fi
 
-git config --global user.name "buildkite-bot"
-git config --global user.email "buildkite-bot@noreply.elastic.co"
+# Don't commit if the last commit is from the bot, to avoid infinite loop of builds
+if test "$(git log -1 --pretty=format:'%ae')" = "${BOT_EMAIL}"; then
+	echo "last commit from bot"
+	exit 0
+fi
+
+git config --global user.name "${BOT_NAME}"
+git config --global user.email "${BOT_EMAIL}"
 
 git add --force libquark_big_{amd64,arm64}.a
 
