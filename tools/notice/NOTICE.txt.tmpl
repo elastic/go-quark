@@ -1,0 +1,27 @@
+{{- define "depInfo" -}}
+{{- range $i, $dep := . }}
+{{ "-" | line }}
+Dependency : {{ $dep.Name }}
+Version: {{ $dep.Version }}
+Licence type (autodetected): {{ $dep.LicenceType }}
+{{ "-" | line }}
+
+{{ $dep | licenceText }}
+{{ end }}
+{{- end -}}
+
+Elastic go-quark
+Copyright 2024-{{ currentYear }} Elasticsearch BV
+
+{{ "=" | line }}
+Third party libraries used by Elastic go-quark:
+{{ "=" | line }}
+
+{{ template "depInfo" .Direct }}
+
+{{ if .Indirect }}
+{{ "=" | line }}
+Indirect dependencies
+
+{{ template "depInfo" .Indirect -}}
+{{- end}}
