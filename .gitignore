@@ -1,3 +1,3 @@
-# .a files should not be committed by users; automation will build and commit
-# changes in PR branches.
-*.a
+# executables
+cmd/quark-mon
+
