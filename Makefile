@@ -10,3 +10,9 @@ notice:
 		-noticeTemplate tools/notice/NOTICE.txt.tmpl \
 		-noticeOut NOTICE.txt \
 		-depsOut ""
+
+.PHONY: check-notice
+check-notice: notice
+	@if git diff --name-only | grep "NOTICE.txt"; then \
+		echo "NOTICE.txt differs from committed version; regenerate and commit."; \
+	fi
