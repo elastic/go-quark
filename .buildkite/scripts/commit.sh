@@ -11,10 +11,15 @@ function download {
 	buildkite-agent artifact download "$1" "$2"
 }
 
-if test -z "${BUILDKITE}"; then
+if [ -z "${BUILDKITE}" ]; then
 	echo "This script doesn't appear to be running in buildkite; refusing to commit"
 	exit 1
 fi
+
+if [ "${BUILDKITE_BRANCH}" = "main" ]; then
+	echo "Skipping commit to main"
+	exit 0
+fi 
 
 for ARCH in amd64 arm64; do
 	download libquark_big_${ARCH}.a .
