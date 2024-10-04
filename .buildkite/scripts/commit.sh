@@ -4,8 +4,8 @@ set -euo pipefail
 
 # Commit modified .a files to the same branch that was built
 
-BOT_NAME ?= "buildkite-bot"
-BOT_EMAIL ?= "buildkite-bot@noreply.elastic.co"
+BOT_NAME=${BOT_NAME:-"buildkite-bot"}
+BOT_EMAIL=${BOT_EMAIL:-"buildkite-bot@noreply.elastic.co"}
 
 function download {
 	buildkite-agent artifact download "$1" "$2"
