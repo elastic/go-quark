@@ -19,4 +19,9 @@ steps:
           - path: "**/*"
             config:
               label: ":pipeline: Upload default Pipeline"
-              command: "buildkite-agent pipeline upload .buildkite/default-pipeline.yml"
+              command: |
+                if test "$(git log -1 --pretty=format:'%ae')" = "buildkite-bot@noreply.elastic.co"; then
+                  echo "Last commit from bot; skipping pipeline"
+                  exit 0
+                fi
+                buildkite-agent pipeline upload .buildkite/default-pipeline.yml
