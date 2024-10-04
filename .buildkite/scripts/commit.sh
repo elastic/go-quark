@@ -16,7 +16,7 @@ for ARCH in amd64 arm64; do
 done
 
 # If there are no changes, don't commit
-if ! git diff --name-only HEAD^ HEAD | grep -q -E '\.a$'; then
+if ! git diff --name-only HEAD | grep -q -E '\.a$'; then
 	echo "No changes detected"
 	exit 0
 fi
@@ -27,16 +27,19 @@ if test "$(git log -1 --pretty=format:'%ae')" = "${BOT_EMAIL}"; then
 	exit 0
 fi
 
+if test -z "${BUILDKITE}"; then
+	echo "This script doesn't appear to be running in buildkite; refusing to commit"
+	exit 1
+fi
+
 git config --global user.name "${BOT_NAME}"
 git config --global user.email "${BOT_EMAIL}"
 
-git add --force libquark_big_{amd64,arm64}.a
+git config --global credential.https://github.com.username token
+git config --global credential.https://github.com.helper '!echo \"password=\$(cat /run/secrets/VAULT_GITHUB_TOKEN)\";'
+
+git add libquark_big_{amd64,arm64}.a
 
 git commit -m "Auto-update .a files by Buildkite"
-
-if test -z "${BUILDKITE_BRANCH}"; then
-	echo "This script doesn't appear to be running in buildkite"
-	exit 1
-fi
 
 git push origin HEAD:"${BUILDKITE_BRANCH}"
