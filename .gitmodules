@@ -1,0 +1,3 @@
+[submodule "quark"]
+	path = src
+	url = https://github.com/elastic/quark.git
