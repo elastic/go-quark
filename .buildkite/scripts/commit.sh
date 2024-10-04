@@ -11,7 +11,12 @@ function download {
 	buildkite-agent artifact download "$1" "$2"
 }
 
-for ARCH in amd64; do
+if test -z "${BUILDKITE}"; then
+	echo "This script doesn't appear to be running in buildkite; refusing to commit"
+	exit 1
+fi
+
+for ARCH in amd64 arm64; do
 	download libquark_big_${ARCH}.a .
 done
 
@@ -27,18 +32,13 @@ if test "$(git log -1 --pretty=format:'%ae')" = "${BOT_EMAIL}"; then
 	exit 0
 fi
 
-if test -z "${BUILDKITE}"; then
-	echo "This script doesn't appear to be running in buildkite; refusing to commit"
-	exit 1
-fi
-
 git config --global user.name "${BOT_NAME}"
 git config --global user.email "${BOT_EMAIL}"
 
 git config --global credential.https://github.com.username token
 git config --global credential.https://github.com.helper '!echo \"password=\$(cat /run/secrets/VAULT_GITHUB_TOKEN)\";'
 
-git add libquark_big_amd64.a
+git add libquark_big_{amd64,arm64}.a
 
 git commit -m "Auto-update .a files by Buildkite"
 
