@@ -38,7 +38,7 @@ git config --global user.email "${BOT_EMAIL}"
 git config --global credential.https://github.com.username token
 git config --global credential.https://github.com.helper '!echo \"password=\$(cat /run/secrets/VAULT_GITHUB_TOKEN)\";'
 
-git add libquark_big_{amd64,arm64}.a
+git add libquark_big_amd64.a
 
 git commit -m "Auto-update .a files by Buildkite"
 
