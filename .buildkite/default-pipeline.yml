@@ -2,19 +2,30 @@
 # $yaml-language-server: $schema=https://raw.githubusercontent.com/buildkite/pipeline-schema/main/schema.json
 
 steps:
-  - label: "Build"
-    key: build
+  - label: "Build amd64"
+    key: build_amd64
     command: "./.buildkite/scripts/build.sh"
     artifact_paths:
       - "libquark_big_amd64.a"
-      - "libquark_big_arm64.a"
     agents:
-      image: family/core-ubuntu-2004
+      image: family/core-ubuntu-2204
       provider: gcp
       machineType: n2-standard-2
 
+  - label: "Build arm64"
+    key: build_arm64
+    command: "./.buildkite/scripts/build.sh"
+    artifact_paths:
+      - "libquark_big_arm64.a"
+    agents:
+      imagePrefix: ci-amazonlinux-2-aarch64
+      provider: aws
+      machineType: m6g.medium
+
   - label: "Commit"
-    depends_on: build
+    depends_on:
+      - build_amd64
+      - build_arm64
     key: commit
     command: "./.buildkite/scripts/commit.sh"
     agents:

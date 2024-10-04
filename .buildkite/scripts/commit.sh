@@ -11,7 +11,7 @@ function download {
 	buildkite-agent artifact download "$1" "$2"
 }
 
-for ARCH in amd64; do
+for ARCH in amd64 arm64; do
 	download libquark_big_${ARCH}.a .
 done
 
@@ -38,7 +38,7 @@ git config --global user.email "${BOT_EMAIL}"
 git config --global credential.https://github.com.username token
 git config --global credential.https://github.com.helper '!echo \"password=\$(cat /run/secrets/VAULT_GITHUB_TOKEN)\";'
 
-git add libquark_big_amd64.a
+git add libquark_big_{amd64,arm64}.a
 
 git commit -m "Auto-update .a files by Buildkite"
 
