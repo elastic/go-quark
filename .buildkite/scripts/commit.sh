@@ -11,7 +11,7 @@ function download {
 	buildkite-agent artifact download "$1" "$2"
 }
 
-for ARCH in amd64 arm64; do
+for ARCH in amd64; do
 	download libquark_big_${ARCH}.a .
 done
 

@@ -6,7 +6,7 @@ set -euo pipefail
 
 git submodule update --init --recursive
 
-for ARCH in amd64 arm64
+for ARCH in amd64
 do
 	ARCH=$ARCH make -C src centos7
 	mv src/libquark_big.a libquark_big_${ARCH}.a
