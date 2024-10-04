@@ -1,14 +1,43 @@
 ---
 # $yaml-language-server: $schema=https://raw.githubusercontent.com/buildkite/pipeline-schema/main/schema.json
+
 steps:
-  - label: "Build"
-    command: "true"
+  - label: "Build amd64"
+    key: build_amd64
+    command: "./.buildkite/scripts/build.sh"
+    artifact_paths:
+      - "libquark_big_amd64.a"
+    agents:
+      image: family/core-ubuntu-2204
+      provider: gcp
+      machineType: n2-standard-2
 
-  - label: "Test"
-    command: "true"
+  - label: "Build arm64"
+    key: build_arm64
+    command: "./.buildkite/scripts/build.sh"
+    artifact_paths:
+      - "libquark_big_arm64.a"
+    agents:
+      imagePrefix: ci-amazonlinux-2-aarch64
+      provider: aws
+      instanceType: m6g.medium
+      diskSizeGb: 60
 
-  - label: "Deploy"
-    command: "true"
+  - label: "Commit"
+    depends_on:
+      - build_amd64
+      - build_arm64
+    key: commit
+    command: "./.buildkite/scripts/commit.sh"
+    agents:
+     image: "docker.elastic.co/ci-agent-images/sec-linux-platform/cloud-defend-builder@sha256:623a0d998dd6ebde09c7b7bbb829e3ba95b5475a0702ab35a5c6049775226f37"
+     cpu: "1"
+     memory: "1Gi"
 
-  - label: "Publish"
-    command: "true"
+  - label: "Check NOTICE.txt"
+    key: check-notice
+    command: "make check-notice"
+    agents:
+     image: "docker.elastic.co/ci-agent-images/sec-linux-platform/cloud-defend-builder@sha256:623a0d998dd6ebde09c7b7bbb829e3ba95b5475a0702ab35a5c6049775226f37"
+     cpu: "1"
+     memory: "1Gi"
