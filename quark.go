@@ -18,6 +18,7 @@ import "C"
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"strings"
 	"syscall"
 	"unsafe"
@@ -145,6 +146,7 @@ func DefaultQueueAttr() QueueAttr {
 func OpenQueue(attr QueueAttr, slots int) (*Queue, error) {
 	var queue Queue
 
+	fmt.Printf("MULUMULU\n")
 	p, err := C.calloc(C.size_t(1), C.sizeof_struct_quark_queue)
 	if p == nil {
 		return nil, wrapErrno(err)
