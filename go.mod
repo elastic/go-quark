@@ -1,4 +1,4 @@
-module github.com/elastic/go-quark
+module github.com/mjwolf/go-quark
 
 go 1.22
 
