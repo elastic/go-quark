@@ -7,11 +7,20 @@ package quark
 
 /*
    #cgo CFLAGS: -I${SRCDIR}/src
-   #cgo amd64 LDFLAGS: ${SRCDIR}/libquark_big_amd64.a
-   #cgo arm64 LDFLAGS: ${SRCDIR}/libquark_big_arm64.a
+   #cgo amd64 LDFLAGS: -Wl,--wrap=fmemopen ${SRCDIR}/libquark_big_amd64.a
+   #cgo arm64 LDFLAGS: -Wl,--wrap=fmemopen ${SRCDIR}/libquark_big_arm64.a
 
    #include <stdlib.h>
    #include "quark.h"
+
+   __asm__(".symver fmemopen, fmemopen@GLIBC_2.2.5");
+
+   FILE *
+   __wrap_fmemopen(void *buf, size_t size, const char *mode)
+   {
+     return fmemopen(buf, size, mode);
+   }
+
 */
 import "C"
 
