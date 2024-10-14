@@ -10,8 +10,9 @@ header_list=(
 	quark.h \
 )
 
-BOT_NAME=${BOT_NAME:-"Michael Wolf"}
-BOT_EMAIL=${BOT_EMAIL:-"michael.wolf@elastic.co"}
+BOT_NAME=${BOT_NAME:-"buildkite[bot]"}
+BOT_ID=${BOT_ID:-"20291210"}
+BOT_EMAIL=${BOT_EMAIL:-"${BOT_ID}+${BOT_NAME}@users.noreply.github.com"}
 
 function download {
 	buildkite-agent artifact download "$1" "$2"
