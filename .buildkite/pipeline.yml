@@ -20,7 +20,7 @@ steps:
             config:
               label: ":pipeline: Upload default Pipeline"
               command: |
-                if test "$(git log -1 --pretty=format:'%ae')" = "buildkite-bot@noreply.elastic.co"; then
+                if test "$(git log -1 --pretty=format:'%ae')" = "20291210+buildkite[bot]@users.noreply.github.com"; then
                   echo "Last commit from bot; skipping pipeline"
                   exit 0
                 fi
