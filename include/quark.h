@@ -4,6 +4,9 @@
 #ifndef _QUARK_H_
 #define _QUARK_H_
 
+/* Version is shared between library and utilities */
+#define QUARK_VERSION "0.1"
+
 /* Misc types */
 #include <stdio.h>
 
@@ -54,7 +57,9 @@ struct quark_btf {
 	char			*kname;
 	struct quark_btf_target	 targets[];
 };
-struct quark_btf	*quark_btf_open(const char *, const char *);
+struct quark_btf	*quark_btf_open(void);
+struct quark_btf	*quark_btf_open2(const char *, const char *);
+struct quark_btf	*quark_btf_open_hub(const char *);
 void			 quark_btf_close(struct quark_btf *);
 ssize_t			 quark_btf_offset(struct quark_btf *, const char *);
 
@@ -94,6 +99,22 @@ char	*find_line_p(const char *, const char *);
 char	*load_file_nostat(int, size_t *);
 struct args *args_make(const struct quark_process *);
 void	 args_free(struct args *);
+
+enum quark_verbosity_levels {
+	QUARK_VL_SILENT,
+	QUARK_VL_WARN,
+	QUARK_VL_DEBUG,
+};
+
+#define	 qlog(pri, do_errno, fmt, ...)					\
+	qlog_func(pri, do_errno, __func__, __LINE__, fmt, ##__VA_ARGS__)
+#define	 qlogx(pri, do_errno, fmt, ...)					\
+	qlog_func(pri, do_errno, __func__, __LINE__, fmt, ##__VA_ARGS__)
+#define	 qwarn(fmt, ...) qlog(QUARK_VL_WARN, 1, fmt, ##__VA_ARGS__)
+#define	 qwarnx(fmt, ...) qlog(QUARK_VL_WARN, 0, fmt, ##__VA_ARGS__)
+#define	 qdebug(fmt, ...) qlog(QUARK_VL_DEBUG, 1, fmt, ##__VA_ARGS__)
+#define	 qdebugx(fmt, ...) qlog(QUARK_VL_DEBUG, 0, fmt, ##__VA_ARGS__)
+void	 qlog_func(int, int, const char *, int, const char *, ...) __attribute__((format(printf, 5,6)));
 
 /*
  * Time helpers
