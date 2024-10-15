@@ -6,7 +6,7 @@
 package quark
 
 /*
-   #cgo CFLAGS: -I${SRCDIR}/src
+   #cgo CFLAGS: -I${SRCDIR}/include
    #cgo amd64 LDFLAGS: -Wl,--wrap=fmemopen ${SRCDIR}/libquark_big_amd64.a
    #cgo arm64 LDFLAGS: -Wl,--wrap=fmemopen ${SRCDIR}/libquark_big_arm64.a
 
