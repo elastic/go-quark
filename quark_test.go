@@ -4,7 +4,9 @@
 package quark
 
 import (
+	"os/exec"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -46,4 +48,72 @@ func TestQuarkGetEvents(t *testing.T) {
 		require.NotEmpty(t, qev.Process.Comm)
 		require.NotEmpty(t, qev.Process.Cwd)
 	}
+}
+
+func TestQuarkStatsEbpf(t *testing.T) {
+	attr := DefaultQueueAttr()
+	attr.Flags |= QQ_NO_SNAPSHOT
+	attr.HoldTime = 100
+
+	attr.Flags |= QQ_EBPF
+	testStats(t, attr)
+}
+
+func TestQuarkStatsKprobe(t *testing.T) {
+	attr := DefaultQueueAttr()
+	attr.Flags |= QQ_NO_SNAPSHOT
+	attr.HoldTime = 100
+
+	attr.Flags |= QQ_KPROBE
+	testStats(t, attr)
+}
+
+func testStats(t *testing.T, attr QueueAttr) {
+	queue, err := OpenQueue(attr, 64)
+	require.NoError(t, err)
+
+	defer queue.Close()
+
+	// XXX assumes /bin/echo exists
+	cmd := exec.Command("/bin/echo", "hi", "from", "echo")
+	err = cmd.Run()
+	require.NoError(t, err)
+
+	qevs, err := drainFor(queue, 200*time.Millisecond)
+	require.NoError(t, err)
+
+	stats := queue.Stats()
+	require.NotZero(t, stats.Insertions)
+	require.NotZero(t, stats.Removals)
+	require.NotZero(t, stats.Aggregations)
+	// We can't be sure of NonAggregations
+	require.Zero(t, stats.Lost)
+
+	require.NotEmpty(t, qevs)
+}
+
+func drainFor(qq *Queue, d time.Duration) ([]Event, error) {
+	var allQevs []Event
+
+	start := time.Now()
+
+	for {
+		qevs, err := qq.GetEvents()
+		if err != nil {
+			return []Event{}, err
+		}
+		if len(qevs) > 0 {
+			allQevs = append(allQevs, qevs...)
+		}
+		if time.Since(start) > d {
+			break
+		}
+		// Intentionally placed at the end so that we always
+		// get one more try after the last block
+		if len(qevs) == 0 {
+			qq.Block()
+		}
+	}
+
+	return allQevs, nil
 }
