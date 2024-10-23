@@ -133,7 +133,7 @@ type Stats struct {
 	Aggregations    uint64
 	NonAggregations uint64
 	Lost            uint64
-	// backend          int (needs quark-0.2)
+	Backend         int
 }
 
 const (
@@ -279,6 +279,7 @@ func (queue *Queue) Stats() Stats {
 	stats.Aggregations = uint64(cStats.aggregations)
 	stats.NonAggregations = uint64(cStats.non_aggregations)
 	stats.Lost = uint64(cStats.lost)
+	stats.Backend = int(cStats.backend)
 
 	return stats
 }
