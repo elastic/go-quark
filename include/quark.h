@@ -5,7 +5,7 @@
 #define _QUARK_H_
 
 /* Version is shared between library and utilities */
-#define QUARK_VERSION "0.1"
+#define QUARK_VERSION "0.2"
 
 /* Misc types */
 #include <stdio.h>
@@ -335,6 +335,7 @@ struct quark_queue_stats {
 	u64	aggregations;
 	u64	non_aggregations;
 	u64	lost;
+	int	backend;	/* active backend, QQ_EBPF or QQ_KPROBE */
 	/* TODO u64	peak_nodes; */
 };
 
