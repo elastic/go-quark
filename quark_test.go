@@ -88,6 +88,7 @@ func testStats(t *testing.T, attr QueueAttr) {
 	require.NotZero(t, stats.Aggregations)
 	// We can't be sure of NonAggregations
 	require.Zero(t, stats.Lost)
+	require.True(t, stats.Backend == QQ_EBPF || stats.Backend == QQ_KPROBE)
 
 	require.NotEmpty(t, qevs)
 }
