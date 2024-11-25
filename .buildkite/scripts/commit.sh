@@ -10,8 +10,8 @@ header_list=(
 	quark.h \
 )
 
-BOT_NAME=${BOT_NAME:-"buildkite[bot]"}
-BOT_ID=${BOT_ID:-"20291210"}
+BOT_NAME=${BOT_NAME:-"elastic-vault-github-plugin-prod[bot]"}
+BOT_ID=${BOT_ID:-"150874479"}
 BOT_EMAIL=${BOT_EMAIL:-"${BOT_ID}+${BOT_NAME}@users.noreply.github.com"}
 
 function download {
