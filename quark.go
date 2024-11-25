@@ -126,6 +126,22 @@ type QueueAttr struct {
 	HoldTime       int
 }
 
+// Documented in https://elastic.github.io/quark/quark_queue_get_stats.3.html.
+type Stats struct {
+	Insertions      uint64
+	Removals        uint64
+	Aggregations    uint64
+	NonAggregations uint64
+	Lost            uint64
+	Backend         int
+}
+
+const (
+	QUARK_VL_SILENT = int(C.QUARK_VL_SILENT)
+	QUARK_VL_WARN   = int(C.QUARK_VL_WARN)
+	QUARK_VL_DEBUG  = int(C.QUARK_VL_DEBUG)
+)
+
 var ErrUndefined = errors.New("undefined")
 
 func wrapErrno(err error) error {
@@ -250,6 +266,27 @@ func (queue *Queue) Snapshot() []Process {
 	}
 
 	return processes
+}
+
+// Stats returns statistics of an active queue.
+func (queue *Queue) Stats() Stats {
+	var stats Stats
+	var cStats C.struct_quark_queue_stats
+
+	C.quark_queue_get_stats(queue.quarkQueue, &cStats)
+	stats.Insertions = uint64(cStats.insertions)
+	stats.Removals = uint64(cStats.removals)
+	stats.Aggregations = uint64(cStats.aggregations)
+	stats.NonAggregations = uint64(cStats.non_aggregations)
+	stats.Lost = uint64(cStats.lost)
+	stats.Backend = int(cStats.backend)
+
+	return stats
+}
+
+// Sets quark verbosity globally, not per queue.
+func SetVerbose(level int) {
+	C.quark_verbose = C.int(level)
 }
 
 // processToGo converts the C process structure to a go process.
