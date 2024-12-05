@@ -53,6 +53,10 @@ type Proc struct {
 	EntryLeaderType uint32
 	TtyMajor        uint32
 	TtyMinor        uint32
+	UtsInonum	uint32
+	IpcInonum	uint32
+	MntInonum	uint32
+	NetInonum	uint32
 	Valid           bool
 }
 
@@ -66,7 +70,6 @@ type Exit struct {
 // Process represents a single process.
 type Process struct {
 	Pid      uint32   // Always present
-	Events   uint64   // Bitmask of events for this Event
 	Proc     Proc     // Only meaningful if Proc.Valid (QUARK_F_PROC)
 	Exit     Exit     // Only meaningful if Exit.Valid (QUARK_F_EXIT)
 	Comm     string   // QUARK_F_COMM
@@ -319,6 +322,10 @@ func processToGo(cProcess *C.struct_quark_process) Process {
 			EntryLeaderType: uint32(cProcess.proc_entry_leader_type),
 			TtyMajor:        uint32(cProcess.proc_tty_major),
 			TtyMinor:        uint32(cProcess.proc_tty_minor),
+			UtsInonum:       uint32(cProcess.proc_uts_inonum),
+			IpcInonum:       uint32(cProcess.proc_ipc_inonum),
+			MntInonum:       uint32(cProcess.proc_mnt_inonum),
+			NetInonum:       uint32(cProcess.proc_net_inonum),
 			Valid:           true,
 		}
 	}
