@@ -14,7 +14,7 @@ steps:
               label: "Verify Renovate configuration"
               command: "renovate-config-validator"
               agents:
-                image: "docker.elastic.co/ci-agent-images/pipelib:0.10.0@sha256:83ddb7512b8950ead9f6c5a26335249a2b796e1fe534e248658c79874ad96067"
+                image: "docker.elastic.co/ci-agent-images/pipelib:0.13.0@sha256:190464950de81cb3390bd5e07bb1cc171dd4a765c1ce5de58ebca476f9a6839f"
           # ... otherwise, fall back to the default pipeline
           - path: "**/*"
             config:
