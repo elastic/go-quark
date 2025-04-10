@@ -4,6 +4,7 @@
 package quark
 
 import (
+	"os"
 	"os/exec"
 	"testing"
 	"time"
@@ -11,61 +12,67 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestQuarkSnapshot(t *testing.T) {
-	queue, err := OpenQueue(DefaultQueueAttr(), 64)
-	require.NoError(t, err)
-
-	defer queue.Close()
-
-	require.NotEmpty(t, queue.Snapshot())
-}
-
-func TestQuarkLookup(t *testing.T) {
-	queue, err := OpenQueue(DefaultQueueAttr(), 64)
-	require.NoError(t, err)
-
-	defer queue.Close()
-
-	fetchPid := uint32(1)
-	pid1, ok := queue.Lookup(int(fetchPid))
-	require.True(t, ok)
-
-	require.Equal(t, fetchPid, pid1.Pid)
-	require.NotEmpty(t, pid1.Comm)
-	require.NotEmpty(t, pid1.Cwd)
-}
-
-func TestQuarkGetEvents(t *testing.T) {
-	queue, err := OpenQueue(DefaultQueueAttr(), 64)
-	require.NoError(t, err)
-
-	defer queue.Close()
-
-	qevs, err := queue.GetEvents()
-	require.NoError(t, err)
-
-	for _, qev := range qevs {
-		require.NotEmpty(t, qev.Process.Comm)
-		require.NotEmpty(t, qev.Process.Cwd)
+func TestQuark(t *testing.T) {
+	if os.Geteuid() != 0 {
+		t.Skip("skipping: quark tests must be run as root")
 	}
-}
 
-func TestQuarkStatsEbpf(t *testing.T) {
-	attr := DefaultQueueAttr()
-	attr.Flags |= QQ_NO_SNAPSHOT
-	attr.HoldTime = 100
+	t.Run("Snapshot", func(t *testing.T) {
+		queue, err := OpenQueue(DefaultQueueAttr(), 64)
+		require.NoError(t, err)
 
-	attr.Flags |= QQ_EBPF
-	testStats(t, attr)
-}
+		defer queue.Close()
 
-func TestQuarkStatsKprobe(t *testing.T) {
-	attr := DefaultQueueAttr()
-	attr.Flags |= QQ_NO_SNAPSHOT
-	attr.HoldTime = 100
+		require.NotEmpty(t, queue.Snapshot())
+	})
 
-	attr.Flags |= QQ_KPROBE
-	testStats(t, attr)
+	t.Run("Lookup", func(t *testing.T) {
+		queue, err := OpenQueue(DefaultQueueAttr(), 64)
+		require.NoError(t, err)
+
+		defer queue.Close()
+
+		fetchPid := uint32(1)
+		pid1, ok := queue.Lookup(int(fetchPid))
+		require.True(t, ok)
+
+		require.Equal(t, fetchPid, pid1.Pid)
+		require.NotEmpty(t, pid1.Comm)
+		require.NotEmpty(t, pid1.Cwd)
+	})
+
+	t.Run("GetEvents", func(t *testing.T) {
+		queue, err := OpenQueue(DefaultQueueAttr(), 64)
+		require.NoError(t, err)
+
+		defer queue.Close()
+
+		qevs, err := queue.GetEvents()
+		require.NoError(t, err)
+
+		for _, qev := range qevs {
+			require.NotEmpty(t, qev.Process.Comm)
+			require.NotEmpty(t, qev.Process.Cwd)
+		}
+	})
+
+	t.Run("StatsEbpf", func(t *testing.T) {
+		attr := DefaultQueueAttr()
+		attr.Flags |= QQ_NO_SNAPSHOT
+		attr.HoldTime = 100
+
+		attr.Flags |= QQ_EBPF
+		testStats(t, attr)
+	})
+
+	t.Run("StatsKprobe", func(t *testing.T) {
+		attr := DefaultQueueAttr()
+		attr.Flags |= QQ_NO_SNAPSHOT
+		attr.HoldTime = 100
+
+		attr.Flags |= QQ_KPROBE
+		testStats(t, attr)
+	})
 }
 
 func testStats(t *testing.T, attr QueueAttr) {
