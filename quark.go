@@ -66,7 +66,7 @@ type Exit struct {
 	ExitTimeProcess uint64
 	Valid           bool
 }
-
+//mulumulu
 // Process represents a single process.
 type Process struct {
 	Pid      uint32   // Always present
