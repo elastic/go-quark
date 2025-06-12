@@ -53,10 +53,10 @@ type Proc struct {
 	EntryLeaderType uint32
 	TtyMajor        uint32
 	TtyMinor        uint32
-	UtsInonum	uint32
-	IpcInonum	uint32
-	MntInonum	uint32
-	NetInonum	uint32
+	UtsInonum       uint32
+	IpcInonum       uint32
+	MntInonum       uint32
+	NetInonum       uint32
 	Valid           bool
 }
 
@@ -76,6 +76,7 @@ type Process struct {
 	Filename string   // QUARK_F_FILENAME
 	Cmdline  []string // QUARK_F_CMDLINE
 	Cwd      string   // QUARK_F_CWD
+	Cgroup   string   // QUARK_F_CGROUP
 }
 
 // Events is a bitmask of QUARK_EV_* and expresses what triggered this
@@ -88,8 +89,6 @@ type Event struct {
 // Queue holds the state of a quark instance.
 type Queue struct {
 	quarkQueue *C.struct_quark_queue // pointer to the queue structure
-	cEvents    *C.struct_quark_event
-	numCevents int
 	epollFd    int
 }
 
@@ -98,7 +97,6 @@ const (
 	QQ_THREAD_EVENTS = int(C.QQ_THREAD_EVENTS)
 	QQ_KPROBE        = int(C.QQ_KPROBE)
 	QQ_EBPF          = int(C.QQ_EBPF)
-	QQ_NO_SNAPSHOT   = int(C.QQ_NO_SNAPSHOT)
 	QQ_MIN_AGG       = int(C.QQ_MIN_AGG)
 	QQ_ENTRY_LEADER  = int(C.QQ_ENTRY_LEADER)
 	QQ_ALL_BACKENDS  = int(C.QQ_ALL_BACKENDS)
@@ -108,7 +106,6 @@ const (
 	QUARK_EV_EXEC         = uint64(C.QUARK_EV_EXEC)
 	QUARK_EV_EXIT         = uint64(C.QUARK_EV_EXIT)
 	QUARK_EV_SETPROCTITLE = uint64(C.QUARK_EV_SETPROCTITLE)
-	QUARK_EV_SNAPSHOT     = uint64(C.QUARK_EV_SNAPSHOT)
 
 	// EntryLeaderType
 	QUARK_ELT_UNKNOWN   = int(C.QUARK_ELT_UNKNOWN)
@@ -131,12 +128,13 @@ type QueueAttr struct {
 
 // Documented in https://elastic.github.io/quark/quark_queue_get_stats.3.html.
 type Stats struct {
-	Insertions      uint64
-	Removals        uint64
-	Aggregations    uint64
-	NonAggregations uint64
-	Lost            uint64
-	Backend         int
+	Insertions         uint64
+	Removals           uint64
+	Aggregations       uint64
+	NonAggregations    uint64
+	Lost               uint64
+	GarbageCollections uint64
+	Backend            int
 }
 
 const (
@@ -170,7 +168,7 @@ func DefaultQueueAttr() QueueAttr {
 }
 
 // OpenQueue opens a Quark Queue with the given attributes.
-func OpenQueue(attr QueueAttr, slots int) (*Queue, error) {
+func OpenQueue(attr QueueAttr) (*Queue, error) {
 	var queue Queue
 
 	p, err := C.calloc(C.size_t(1), C.sizeof_struct_quark_queue)
@@ -178,7 +176,6 @@ func OpenQueue(attr QueueAttr, slots int) (*Queue, error) {
 		return nil, wrapErrno(err)
 	}
 	queue.quarkQueue = (*C.struct_quark_queue)(p)
-	p = nil
 
 	cattr := C.struct_quark_queue_attr{
 		flags:            C.int(attr.Flags),
@@ -192,16 +189,6 @@ func OpenQueue(attr QueueAttr, slots int) (*Queue, error) {
 		return nil, wrapErrno(err)
 	}
 
-	p, err = C.calloc(C.size_t(slots), C.sizeof_struct_quark_event)
-	if p == nil {
-		C.quark_queue_close(queue.quarkQueue)
-		C.free(unsafe.Pointer(queue.quarkQueue))
-		return nil, wrapErrno(err)
-	}
-	queue.cEvents = (*C.struct_quark_event)(p)
-	queue.numCevents = slots
-	p = nil
-
 	queue.epollFd = int(C.quark_queue_get_epollfd(queue.quarkQueue))
 
 	return &queue, nil
@@ -211,28 +198,19 @@ func OpenQueue(attr QueueAttr, slots int) (*Queue, error) {
 func (queue *Queue) Close() {
 	C.quark_queue_close(queue.quarkQueue)
 	C.free(unsafe.Pointer(queue.quarkQueue))
-	C.free(unsafe.Pointer(queue.cEvents))
 	queue.quarkQueue = nil
-	queue.cEvents = nil
 }
 
-func eventOfIndex(cEvents *C.struct_quark_event, idx int) *C.struct_quark_event {
-	return (*C.struct_quark_event)(unsafe.Add(unsafe.Pointer(cEvents), idx*C.sizeof_struct_quark_event))
-}
-
-// GetEvents returns a number of events, up to a maximum of `slots` passed to OpenQueue.
-func (queue *Queue) GetEvents() ([]Event, error) {
-	n, err := C.quark_queue_get_events(queue.quarkQueue, queue.cEvents, C.int(queue.numCevents))
-	if n == -1 {
-		return nil, wrapErrno(err)
+func (queue *Queue) GetEvent() (Event, bool) {
+	cev := C.quark_queue_get_event(queue.quarkQueue)
+	if cev == nil || cev.process == nil {
+		return Event{}, false
 	}
 
-	events := make([]Event, n)
-	for i := range events {
-		events[i] = eventToGo(eventOfIndex(queue.cEvents, i))
-	}
-
-	return events, nil
+	return Event{
+		Events:  uint64(cev.events),
+		Process: processToGo(cev.process),
+	}, true
 }
 
 // Lookup looks up for the Process associated with PID in quark's internal cache.
@@ -247,7 +225,7 @@ func (queue *Queue) Lookup(pid int) (Process, bool) {
 }
 
 // Block blocks until there are events or an undefined timeout
-// expires. GetEvents should be called once Block returns.
+// expires. GetEvent should be called once Block returns.
 func (queue *Queue) Block() error {
 	event := make([]syscall.EpollEvent, 1)
 	_, err := syscall.EpollWait(queue.epollFd, event, 100)
@@ -282,6 +260,7 @@ func (queue *Queue) Stats() Stats {
 	stats.Aggregations = uint64(cStats.aggregations)
 	stats.NonAggregations = uint64(cStats.non_aggregations)
 	stats.Lost = uint64(cStats.lost)
+	stats.GarbageCollections = uint64(cStats.garbage_collections)
 	stats.Backend = int(cStats.backend)
 
 	return stats
@@ -340,24 +319,20 @@ func processToGo(cProcess *C.struct_quark_process) Process {
 		process.Comm = C.GoString(&cProcess.comm[0])
 	}
 	if cProcess.flags&C.QUARK_F_FILENAME != 0 {
-		process.Filename = C.GoString(&cProcess.filename[0])
+		process.Filename = C.GoString(cProcess.filename)
 	}
 	if cProcess.flags&C.QUARK_F_CMDLINE != 0 {
-		b := C.GoBytes(unsafe.Pointer(&cProcess.cmdline[0]), C.int(cProcess.cmdline_len))
+		b := C.GoBytes(unsafe.Pointer(cProcess.cmdline), C.int(cProcess.cmdline_len))
 		nul := string(byte(0))
 		b = bytes.TrimRight(b, nul)
 		process.Cmdline = strings.Split(string(b), nul)
 	}
 	if cProcess.flags&C.QUARK_F_CWD != 0 {
-		process.Cwd = C.GoString(&cProcess.cwd[0])
+		process.Cwd = C.GoString(cProcess.cwd)
+	}
+	if cProcess.flags&C.QUARK_F_CGROUP != 0 {
+		process.Cgroup = C.GoString(cProcess.cgroup)
 	}
 
 	return process
-}
-
-func eventToGo(cEvent *C.struct_quark_event) Event {
-	return Event{
-		Events:  uint64(cEvent.events),
-		Process: processToGo(cEvent.process),
-	}
 }

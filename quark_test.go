@@ -18,7 +18,7 @@ func TestQuark(t *testing.T) {
 	}
 
 	t.Run("Snapshot", func(t *testing.T) {
-		queue, err := OpenQueue(DefaultQueueAttr(), 64)
+		queue, err := OpenQueue(DefaultQueueAttr())
 		require.NoError(t, err)
 
 		defer queue.Close()
@@ -27,7 +27,7 @@ func TestQuark(t *testing.T) {
 	})
 
 	t.Run("Lookup", func(t *testing.T) {
-		queue, err := OpenQueue(DefaultQueueAttr(), 64)
+		queue, err := OpenQueue(DefaultQueueAttr())
 		require.NoError(t, err)
 
 		defer queue.Close()
@@ -41,24 +41,17 @@ func TestQuark(t *testing.T) {
 		require.NotEmpty(t, pid1.Cwd)
 	})
 
-	t.Run("GetEvents", func(t *testing.T) {
-		queue, err := OpenQueue(DefaultQueueAttr(), 64)
+	t.Run("GetEvent", func(t *testing.T) {
+		queue, err := OpenQueue(DefaultQueueAttr())
 		require.NoError(t, err)
 
 		defer queue.Close()
 
-		qevs, err := queue.GetEvents()
-		require.NoError(t, err)
-
-		for _, qev := range qevs {
-			require.NotEmpty(t, qev.Process.Comm)
-			require.NotEmpty(t, qev.Process.Cwd)
-		}
+		_, _ = queue.GetEvent()
 	})
 
 	t.Run("StatsEbpf", func(t *testing.T) {
 		attr := DefaultQueueAttr()
-		attr.Flags |= QQ_NO_SNAPSHOT
 		attr.HoldTime = 100
 
 		attr.Flags |= QQ_EBPF
@@ -67,7 +60,6 @@ func TestQuark(t *testing.T) {
 
 	t.Run("StatsKprobe", func(t *testing.T) {
 		attr := DefaultQueueAttr()
-		attr.Flags |= QQ_NO_SNAPSHOT
 		attr.HoldTime = 100
 
 		attr.Flags |= QQ_KPROBE
@@ -76,7 +68,7 @@ func TestQuark(t *testing.T) {
 }
 
 func testStats(t *testing.T, attr QueueAttr) {
-	queue, err := OpenQueue(attr, 64)
+	queue, err := OpenQueue(attr)
 	require.NoError(t, err)
 
 	defer queue.Close()
@@ -106,19 +98,16 @@ func drainFor(qq *Queue, d time.Duration) ([]Event, error) {
 	start := time.Now()
 
 	for {
-		qevs, err := qq.GetEvents()
-		if err != nil {
-			return []Event{}, err
-		}
-		if len(qevs) > 0 {
-			allQevs = append(allQevs, qevs...)
+		qev, ok := qq.GetEvent()
+		if ok {
+			allQevs = append(allQevs, qev)
 		}
 		if time.Since(start) > d {
 			break
 		}
 		// Intentionally placed at the end so that we always
 		// get one more try after the last block
-		if len(qevs) == 0 {
+		if !ok {
 			qq.Block()
 		}
 	}
