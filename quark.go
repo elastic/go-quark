@@ -13,7 +13,13 @@ package quark
    #include <stdlib.h>
    #include "quark.h"
 
+   #ifdef __x86_64__
    __asm__(".symver fmemopen, fmemopen@GLIBC_2.2.5");
+   #elif __aarch64__
+   __asm__(".symver fmemopen, fmemopen@GLIBC_2.17");
+   #else
+   #error Add correct desired symbol version for your arch
+   #endif
 
    FILE *
    __wrap_fmemopen(void *buf, size_t size, const char *mode)
