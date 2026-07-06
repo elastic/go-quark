@@ -1,5 +1,5 @@
 Elastic go-quark
-Copyright 2024-2024 Elasticsearch BV
+Copyright 2024-2026 Elasticsearch BV
 
 ================================================================================
 Third party libraries used by Elastic go-quark:
@@ -220,11 +220,11 @@ Contents of probable licence file $GOMODCACHE/github.com/elastic/go-licenser@v0.
 
 --------------------------------------------------------------------------------
 Dependency : github.com/stretchr/testify
-Version: v1.9.0
+Version: v1.10.0
 Licence type (autodetected): MIT
 --------------------------------------------------------------------------------
 
-Contents of probable licence file $GOMODCACHE/github.com/stretchr/testify@v1.9.0/LICENSE:
+Contents of probable licence file $GOMODCACHE/github.com/stretchr/testify@v1.10.0/LICENSE:
 
 MIT License
 
