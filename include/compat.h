@@ -11,6 +11,7 @@
 #include <sys/types.h>
 
 /* Standard */
+#include <features.h>
 #include <stdio.h>
 #include <stdint.h>
 
@@ -51,23 +52,33 @@ typedef uintptr_t	__uintptr_t;	/* for freebsd_tree.h */
 #define nitems(_a)	(sizeof((_a)) / sizeof((_a)[0]))
 #endif	/* nitems */
 
-#ifndef min
-#define min(_a, _b)	((_a) < (_b) ? (_a) : (_b))
-#endif	/* min */
-
 /*
  * BSD compat
  */
 #include "freebsd_queue.h"
 #include "freebsd_tree.h"
 
+#if !defined(SYSLIB) ||							\
+	(defined(__GLIBC__) &&						\
+	    (__GLIBC__ < 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ < 38)))
 size_t		strlcat(char *, const char *, size_t);
 size_t		strlcpy(char *, const char *, size_t);
+#endif /* strlcpy, strlcat */
 long long	strtonum(const char *, long long, long long, const char **);
 
 /*
  * Misc
  */
 void		sshbuf_dump_data(const void *, size_t, FILE *);
+
+#ifndef HAVE_REALLOCARRAY
+void		*reallocarray(void *, size_t, size_t);
+#endif	/* HAVE_REALLOCARRAY */
+
+/*
+ * Base64, portable version of b64_*, so we don't have to link with libresolv
+ */
+int		qb64_ntop(u_char const *, size_t, char *, size_t);
+int 		qb64_pton(char const *, u_char *, size_t);
 
 #endif	/* _COMPAT_H */

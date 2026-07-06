@@ -2,14 +2,6 @@
 
 set -euo pipefail
 
-# These headers must be included in this repo directly for cgo compilation of go-quark
-header_list=(
-	compat.h \
-	freebsd_queue.h \
-	freebsd_tree.h \
-	quark.h \
-)
-
 BOT_NAME=${BOT_NAME:-"elastic-vault-github-plugin-prod[bot]"}
 BOT_ID=${BOT_ID:-"150874479"}
 BOT_EMAIL=${BOT_EMAIL:-"${BOT_ID}+${BOT_NAME}@users.noreply.github.com"}
@@ -38,10 +30,6 @@ fi
 
 for ARCH in amd64 arm64; do
 	download libquark_big_${ARCH}.a .
-done
-
-for file in "${header_list[@]}"; do
-	cp src/${file} include/
 done
 
 
