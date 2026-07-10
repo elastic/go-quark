@@ -30,7 +30,7 @@ steps:
     key: commit
     command: "./.buildkite/scripts/commit.sh"
     agents:
-     image: "docker.elastic.co/ci-agent-images/sec-linux-platform/cloud-defend-builder@sha256:623a0d998dd6ebde09c7b7bbb829e3ba95b5475a0702ab35a5c6049775226f37"
+     image: "docker.elastic.co/ci-agent-images/sec-linux-platform/cloud-defend-builder:latest@sha256:f1049cc42a63f44ebe99b99fe86271e0362110bd0b7f7541830e3fcecc2e74bc"
      cpu: "1"
      memory: "1Gi"
 
@@ -38,6 +38,6 @@ steps:
     key: check-notice
     command: "make check-notice"
     agents:
-     image: "docker.elastic.co/ci-agent-images/sec-linux-platform/cloud-defend-builder@sha256:623a0d998dd6ebde09c7b7bbb829e3ba95b5475a0702ab35a5c6049775226f37"
+     image: "docker.elastic.co/ci-agent-images/sec-linux-platform/cloud-defend-builder:latest@sha256:f1049cc42a63f44ebe99b99fe86271e0362110bd0b7f7541830e3fcecc2e74bc"
      cpu: "1"
      memory: "1Gi"
