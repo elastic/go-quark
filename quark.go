@@ -217,7 +217,6 @@ const (
 	QQ_TTY           = int(C.QQ_TTY)
 	QQ_PTRACE        = int(C.QQ_PTRACE)
 	QQ_MODULE_LOAD   = int(C.QQ_MODULE_LOAD)
-	QQ_ALL_BACKENDS  = int(C.QQ_ALL_BACKENDS)
 
 	// Event.events
 	QUARK_EV_FORK             = uint64(C.QUARK_EV_FORK)
@@ -462,6 +461,34 @@ func (queue *Queue) Stats() Stats {
 // Sets quark verbosity globally, not per queue.
 func SetVerbose(level int) {
 	C.quark_verbose = C.int(level)
+}
+
+// UpdateBoottime refetches the boottime epoch used by TimeToWallclock.
+// Call it when the system clock might have been stepped, as when NTP
+// corrects a clock that was wrong at boot.
+func UpdateBoottime() error {
+	ret, err := C.quark_update_boottime()
+	if ret == -1 {
+		return wrapErrno(err)
+	}
+
+	return nil
+}
+
+// Boottime returns the boottime epoch used by TimeToWallclock: the
+// wallclock time of boot in nanoseconds since the Unix epoch, zero
+// before the first queue is opened.
+func Boottime() uint64 {
+	return uint64(C.quark_get_boottime())
+}
+
+// TimeToWallclock translates timeSinceBoot from nanoseconds since boot,
+// as in Proc.TimeBoot, Exit.ExitTimeProcess, Socket.EstablishedTime and
+// Socket.CloseTime, to nanoseconds since the Unix epoch. Times since
+// boot are immune to system clock changes; translate at the last moment
+// and keep the epoch fresh with UpdateBoottime.
+func TimeToWallclock(timeSinceBoot uint64) uint64 {
+	return uint64(C.quark_time_to_wallclock(C.u64(timeSinceBoot)))
 }
 
 // processFromC converts the C process structure to a go process.
