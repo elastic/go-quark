@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright (c) 2024 Elastic NV
+// Copyright (c) 2024-2026 Elastic NV
 
 package quark
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"testing"
@@ -54,6 +55,7 @@ func TestQuark(t *testing.T) {
 		attr := DefaultQueueAttr()
 		attr.HoldTime = 100
 
+		attr.Flags &= ^(QQ_EBPF | QQ_KPROBE)
 		attr.Flags |= QQ_EBPF
 		testStats(t, attr)
 	})
@@ -62,9 +64,124 @@ func TestQuark(t *testing.T) {
 		attr := DefaultQueueAttr()
 		attr.HoldTime = 100
 
+		attr.Flags &= ^(QQ_EBPF | QQ_KPROBE)
 		attr.Flags |= QQ_KPROBE
 		testStats(t, attr)
 	})
+
+	t.Run("DisableAggregation", func(t *testing.T) {
+		attr := DefaultQueueAttr()
+		attr.HoldTime = 25
+
+		queue, err := OpenQueue(attr)
+		require.NoError(t, err)
+		defer queue.Close()
+
+		require.NoError(t, queue.DisableAggregation())
+
+		// XXX assumes /bin/true exists
+		cmd := exec.Command("/bin/true")
+		err = cmd.Run()
+		require.NoError(t, err)
+
+		qevs, err := drainFor(queue, 200*time.Millisecond)
+		require.NoError(t, err)
+
+		var childEvents []uint64
+		for _, qev := range qevs {
+			if qev.Process.Pid == uint32(cmd.Process.Pid) {
+				childEvents = append(childEvents, qev.Events)
+			}
+		}
+
+		require.Len(t, childEvents, 3)
+		processEvents := QUARK_EV_FORK | QUARK_EV_EXEC | QUARK_EV_EXIT
+		require.Equal(t, []uint64{
+			QUARK_EV_FORK,
+			QUARK_EV_EXEC,
+			QUARK_EV_EXIT,
+		}, []uint64{
+			childEvents[0] & processEvents,
+			childEvents[1] & processEvents,
+			childEvents[2] & processEvents,
+		})
+	})
+
+	t.Run("RulePoison", func(t *testing.T) {
+		const poisonTag = 1805
+
+		// Poison our children, pass only poisoned events, drop the
+		// rest, as in t_rule_poison of quark-test.
+		attr := DefaultQueueAttr()
+		attr.HoldTime = 25
+		attr.RuleText = fmt.Sprintf(
+			"poison %d on process.ppid %d\n"+
+				"pass on poison %d\n"+
+				"drop on any",
+			poisonTag, os.Getpid(), poisonTag)
+
+		queue, err := OpenQueue(attr)
+		require.NoError(t, err)
+
+		defer queue.Close()
+
+		// XXX assumes /bin/true exists
+		cmd := exec.Command("/bin/true")
+		err = cmd.Run()
+		require.NoError(t, err)
+
+		qevs, err := drainFor(queue, 200*time.Millisecond)
+		require.NoError(t, err)
+		require.NotEmpty(t, qevs)
+
+		// Everything that survived the ruleset must carry the tag,
+		// and our child must be in there.
+		foundChild := false
+		for _, qev := range qevs {
+			require.Equal(t, uint64(poisonTag), qev.Process.PoisonTag)
+			if qev.Process.Pid == uint32(cmd.Process.Pid) {
+				foundChild = true
+			}
+		}
+		require.True(t, foundChild)
+	})
+
+	t.Run("PasswdGroupLookup", func(t *testing.T) {
+		queue, err := OpenQueue(DefaultQueueAttr())
+		require.NoError(t, err)
+
+		defer queue.Close()
+
+		passwd, ok := queue.PasswdLookup(0)
+		require.True(t, ok)
+		require.Equal(t, "root", passwd.Name)
+		require.Zero(t, passwd.Uid)
+		require.Zero(t, passwd.Gid)
+
+		group, ok := queue.GroupLookup(0)
+		require.True(t, ok)
+		require.Equal(t, "root", group.Name)
+		require.Zero(t, group.Gid)
+
+		_, ok = queue.PasswdLookup(4294967290)
+		require.False(t, ok)
+		_, ok = queue.GroupLookup(4294967290)
+		require.False(t, ok)
+	})
+}
+
+// TestRuleText tests ruleset parsing, which happens before any
+// privileged operation, so it doesn't require root.
+func TestRuleText(t *testing.T) {
+	ruleset, err := rulesetFromText("drop on any")
+	require.NoError(t, err)
+	require.NotNil(t, ruleset)
+	freeRuleset(ruleset)
+
+	attr := DefaultQueueAttr()
+	attr.RuleText = "this is not a valid rule"
+	_, err = OpenQueue(attr)
+	require.ErrorContains(t, err, "can't parse ruleset")
 }
 
 func testStats(t *testing.T, attr QueueAttr) {
