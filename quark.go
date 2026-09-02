@@ -7,8 +7,6 @@ package quark
 
 /*
 #cgo CFLAGS: -I${SRCDIR}/include
-#cgo amd64 LDFLAGS: -Wl,--wrap=fmemopen ${SRCDIR}/libquark_big_amd64.a
-#cgo arm64 LDFLAGS: -Wl,--wrap=fmemopen ${SRCDIR}/libquark_big_arm64.a
 
 #include <errno.h>
 #include <stdlib.h>
@@ -327,6 +325,7 @@ type Stats struct {
 	NonAggregations    uint64
 	Lost               uint64
 	GarbageCollections uint64
+	Stalls             uint64
 	Backend            int
 }
 
@@ -450,12 +449,14 @@ func (queue *Queue) GetEvent() (Event, bool) {
 	var event Event
 
 	cev := C.quark_queue_get_event(queue.quarkQueue)
-	if cev == nil || cev.process == nil {
+	if cev == nil {
 		return event, false
 	}
 
 	event.Events = uint64(cev.events)
-	event.Process = processFromC(cev.process)
+	if cev.process != nil {
+		event.Process = processFromC(cev.process)
+	}
 	if cev.socket != nil {
 		socket := socketFromC(cev.socket)
 		event.Socket = &socket
@@ -584,6 +585,7 @@ func (queue *Queue) Stats() Stats {
 	stats.NonAggregations = uint64(cStats.non_aggregations)
 	stats.Lost = uint64(cStats.lost)
 	stats.GarbageCollections = uint64(cStats.garbage_collections)
+	stats.Stalls = uint64(cStats.stalls)
 	stats.Backend = int(cStats.backend)
 
 	return stats

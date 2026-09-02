@@ -30,6 +30,7 @@ fi
 
 for ARCH in amd64 arm64; do
 	download libquark_big_${ARCH}.a .
+	download libquark_big_synthetic_${ARCH}.a .
 done
 
 
@@ -39,7 +40,8 @@ git config --global user.email "${BOT_EMAIL}"
 git config --global credential.https://github.com.username token
 git config --global credential.https://github.com.helper '!echo \"password=\$(cat /run/secrets/VAULT_GITHUB_TOKEN)\";'
 
-git add libquark_big_{amd64,arm64}.a include/*.h
+git add libquark_big_{amd64,arm64}.a \
+	libquark_big_synthetic_{amd64,arm64}.a include/*.h
 
 git commit -m "Auto-update files by Buildkite"
 

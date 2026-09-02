@@ -7,6 +7,7 @@ steps:
     command: "make update-quark"
     artifact_paths:
       - "libquark_big_amd64.a"
+      - "libquark_big_synthetic_amd64.a"
     agents:
       image: family/core-ubuntu-2204
       provider: gcp
@@ -17,6 +18,7 @@ steps:
     command: "make update-quark"
     artifact_paths:
       - "libquark_big_arm64.a"
+      - "libquark_big_synthetic_arm64.a"
     agents:
       imagePrefix: ci-amazonlinux-2-aarch64
       provider: aws
