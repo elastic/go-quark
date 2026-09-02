@@ -327,6 +327,7 @@ type Stats struct {
 	NonAggregations    uint64
 	Lost               uint64
 	GarbageCollections uint64
+	Stalls             uint64
 	Backend            int
 }
 
@@ -584,6 +585,7 @@ func (queue *Queue) Stats() Stats {
 	stats.NonAggregations = uint64(cStats.non_aggregations)
 	stats.Lost = uint64(cStats.lost)
 	stats.GarbageCollections = uint64(cStats.garbage_collections)
+	stats.Stalls = uint64(cStats.stalls)
 	stats.Backend = int(cStats.backend)
 
 	return stats
