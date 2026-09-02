@@ -32,9 +32,17 @@ check-notice: notice
 copy-headers:
 	cp $(SHIPPED_HEADERS) include/
 
-update-quark: copy-headers
+update-quark:
 	git submodule update --init --recursive
+	$(MAKE) copy-headers
 	make -C src centos7 WITH_BTFHUB=y NO_GO=y
 	mv src/libquark_big.a libquark_big_$(ARCH).a
+	make -C src centos7 WITH_BTFHUB=y NO_GO=y WITH_SYNTHETIC=1
+	mv src/libquark_big.a libquark_big_synthetic_$(ARCH).a
+	$(MAKE) test-quark-libraries
 
-.PHONY: notice check-notice copy-headers update-quark
+test-quark-libraries:
+	go test -run '^$$' .
+	go test -tags=quark_synthetic -run '^TestSynthetic' .
+
+.PHONY: notice check-notice copy-headers update-quark test-quark-libraries

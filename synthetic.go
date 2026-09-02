@@ -7,6 +7,8 @@ package quark
 
 /*
 #cgo CFLAGS: -DWITH_SYNTHETIC
+#cgo amd64 LDFLAGS: -Wl,--wrap=fmemopen ${SRCDIR}/libquark_big_synthetic_amd64.a
+#cgo arm64 LDFLAGS: -Wl,--wrap=fmemopen ${SRCDIR}/libquark_big_synthetic_arm64.a
 
 #include <stdlib.h>
 #include "quark.h"
