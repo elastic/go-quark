@@ -5,7 +5,7 @@
 #define _QUARK_H_
 
 /* Version is shared between library and utilities */
-#define QUARK_VERSION "0.8"
+#define QUARK_VERSION "0.9a"
 
 /* Misc types */
 #include <sys/socket.h>
@@ -62,9 +62,7 @@ int			 quark_queue_get_epollfd(struct quark_queue *);
 void			 quark_queue_get_stats(struct quark_queue *,
 			     struct quark_queue_stats *);
 int			 quark_start_kube_talker(const char *, pid_t *);
-int			 quark_update_boottime(void);
 u64			 quark_get_boottime(void);
-u64			 quark_time_to_wallclock(u64);
 int			 quark_dump_process_cache_graph(struct quark_queue *,
 			     FILE *);
 int			 quark_dump_raw_event_graph(struct quark_queue *,
@@ -164,7 +162,7 @@ char		*load_file_nostat(int, size_t *);
 char		*load_file_path_nostat(const char *, size_t *);
 int		 ipv6_supported(void);
 const char	*safe_basename(const char *);
-u64		 fetch_boottime(void);
+u64		 clock_diff(clockid_t, clockid_t);
 void		 setup_libbpf_logs(void);
 
 enum quark_verbosity_levels {
@@ -226,6 +224,10 @@ int	quark_event_to_ecs(struct quark_queue *qq,
 #ifndef MS_TO_NS
 #define MS_TO_NS(_x)	((u64)(_x) * NS_PER_MS)
 #endif /* MS_TO_NS */
+
+#ifndef TS_TO_NS
+#define TS_TO_NS(_ts) ((u64)(_ts).tv_sec * NS_PER_S + (u64)(_ts).tv_nsec)
+#endif /* TS_TO_NS */
 
 #ifndef NS_TO_S
 #define NS_TO_S(_x)	((u64)(_x) / NS_PER_S)
@@ -866,8 +868,9 @@ struct quark_queue_stats {
 	u64	non_aggregations;
 	u64	lost;
 	u64	garbage_collections;
-	int	backend;	/* active backend, QQ_EBPF or QQ_KPROBE */
-	/* TODO u64	peak_nodes; */
+	u64	stalls;     /* stalled perf rings due to corruption, only for QQ_KPROBE */
+	int	backend;    /* active backend, QQ_EBPF or QQ_KPROBE */
+	/* TODO u64    peak_nodes; */
 };
 
 struct quark_queue_ops {
@@ -893,11 +896,6 @@ struct quark_queue_attr {
 #define QQ_MODULE_LOAD		(1 << 12)
 #define QQ_GETPID		(1 << 13)
 #define QQ_NOVA			(1 << 14)
-/*
- * Informational only, not configuration: if set, event times are
- * CLOCK_MONOTONIC, else CLOCK_BOOTTIME.
- */
-#define QQ_MONOTONIC		(1 << 15)
 	int			 flags;
 	int			 max_length;
 	int			 cache_grace_time;	/* in ms */
