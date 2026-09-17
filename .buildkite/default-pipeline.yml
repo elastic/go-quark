@@ -41,3 +41,11 @@ steps:
      image: "docker.elastic.co/ci-agent-images/sec-linux-platform/cloud-defend-builder:latest@sha256:776846793981cf6c453771e570bc65495bd37c26fef29f7acfd00549ffca62aa"
      cpu: "1"
      memory: "1Gi"
+
+  - label: "Check gofmt"
+    key: check-fmt
+    command: "make check-fmt"
+    agents:
+     image: "docker.elastic.co/ci-agent-images/sec-linux-platform/cloud-defend-builder:latest@sha256:776846793981cf6c453771e570bc65495bd37c26fef29f7acfd00549ffca62aa"
+     cpu: "1"
+     memory: "1Gi"
