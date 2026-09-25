@@ -180,6 +180,21 @@ type Ptrace struct {
 	Data     uint64
 }
 
+// Mprotect describes an executable protection attempt observed for one VMA.
+// The LSM check happens before the kernel commits the protection change.
+type Mprotect struct {
+	VmaStart      uint64
+	VmaEnd        uint64
+	PrevProt      uint64
+	ReqProt       uint64
+	EffectiveProt uint64
+	Inode         uint64
+	DevMajor      uint32
+	DevMinor      uint32
+	FileBacked    bool
+	Path          string // mount-ns relative; empty for anonymous mappings
+}
+
 type ModuleLoad struct {
 	Name       string
 	Version    string
@@ -224,6 +239,7 @@ type Event struct {
 	Packet     *Packet
 	File       *File
 	Ptrace     *Ptrace
+	Mprotect   *Mprotect
 	ModuleLoad *ModuleLoad
 	Shm        *any // ShmGet, MemFd or ShmOpen
 	Tty        *Tty
@@ -251,6 +267,7 @@ const (
 	QQ_TTY           = int(C.QQ_TTY)
 	QQ_PTRACE        = int(C.QQ_PTRACE)
 	QQ_MODULE_LOAD   = int(C.QQ_MODULE_LOAD)
+	QQ_MPROTECT      = int(C.QQ_MPROTECT)
 
 	// Event.events
 	QUARK_EV_FORK                  = uint64(C.QUARK_EV_FORK)
@@ -266,6 +283,7 @@ const (
 	QUARK_EV_MODULE_LOAD           = uint64(C.QUARK_EV_MODULE_LOAD)
 	QUARK_EV_SHM                   = uint64(C.QUARK_EV_SHM)
 	QUARK_EV_TTY                   = uint64(C.QUARK_EV_TTY)
+	QUARK_EV_MPROTECT              = uint64(C.QUARK_EV_MPROTECT)
 
 	// EntryLeaderType
 	QUARK_ELT_UNKNOWN   = int(C.QUARK_ELT_UNKNOWN)
@@ -323,6 +341,7 @@ type Stats struct {
 	NonAggregations    uint64
 	Lost               uint64
 	GarbageCollections uint64
+	Stalls             uint64
 	Backend            int
 }
 
@@ -432,7 +451,12 @@ func OpenQueue(attr QueueAttr) (*Queue, error) {
 }
 
 // Close closes the queue.
+// It is safe to call Close on a previously closed queue.
 func (queue *Queue) Close() {
+	if queue.quarkQueue == nil {
+		// previously closed
+		return
+	}
 	C.quark_queue_close(queue.quarkQueue)
 	C.free(unsafe.Pointer(queue.quarkQueue))
 	queue.quarkQueue = nil
@@ -463,6 +487,10 @@ func (queue *Queue) GetEvent() (Event, bool) {
 	if event.Events&QUARK_EV_PTRACE != 0 {
 		ptrace := ptraceFromC(&cev.ptrace)
 		event.Ptrace = &ptrace
+	}
+	if event.Events&QUARK_EV_MPROTECT != 0 {
+		mprotect := mprotectFromC(&cev.mprotect)
+		event.Mprotect = &mprotect
 	}
 	if cev.module_load != nil {
 		ml := moduleLoadFromC(cev.module_load)
@@ -580,6 +608,7 @@ func (queue *Queue) Stats() Stats {
 	stats.NonAggregations = uint64(cStats.non_aggregations)
 	stats.Lost = uint64(cStats.lost)
 	stats.GarbageCollections = uint64(cStats.garbage_collections)
+	stats.Stalls = uint64(cStats.stalls)
 	stats.Backend = int(cStats.backend)
 
 	return stats
@@ -590,32 +619,28 @@ func SetVerbose(level int) {
 	C.quark_verbose = C.int(level)
 }
 
-// UpdateBoottime refetches the boottime epoch used by TimeToWallclock.
-// Call it when the system clock might have been stepped, as when NTP
-// corrects a clock that was wrong at boot.
-func UpdateBoottime() error {
-	ret, err := C.quark_update_boottime()
-	if ret == -1 {
-		return wrapErrno(err)
-	}
-
-	return nil
-}
-
-// Boottime returns the boottime epoch used by TimeToWallclock: the
-// wallclock time of boot in nanoseconds since the Unix epoch, zero
-// before the first queue is opened.
+// Boottime returns the boottime epoch: the wallclock time of boot in
+// nanoseconds since the Unix epoch. Adding it to a time-since-boot, as
+// in Proc.TimeBoot, Exit.ExitTimeProcess, Socket.EstablishedTime and
+// Socket.CloseTime, yields nanoseconds since the Unix epoch.
+//
+// The value is stable across calls, only a system clock step moves it
+// once the accumulated change exceeds 10ms. Such system clock steps
+// are expected to be rare for most systems as they do not include
+// regular clock slewing that results in 0ns difference in Boottime.
+// The C counterpart is cheap, but a cgo call per event is not: fetch
+// it once per batch and convert with plain addition:
+//
+//	epoch := quark.Boottime()
+//	for _, ev := range events {
+//		wallclock := ev.Process.Proc.TimeBoot + epoch
+//		...
+//	}
+//
+// Times-since-boot are immune to system clock changes, convert at the
+// last moment, when a time leaves the system for display or storage.
 func Boottime() uint64 {
 	return uint64(C.quark_get_boottime())
-}
-
-// TimeToWallclock translates timeSinceBoot from nanoseconds since boot,
-// as in Proc.TimeBoot, Exit.ExitTimeProcess, Socket.EstablishedTime and
-// Socket.CloseTime, to nanoseconds since the Unix epoch. Times since
-// boot are immune to system clock changes; translate at the last moment
-// and keep the epoch fresh with UpdateBoottime.
-func TimeToWallclock(timeSinceBoot uint64) uint64 {
-	return uint64(C.quark_time_to_wallclock(C.u64(timeSinceBoot)))
 }
 
 // DisableAggregation clears every entry in Quark's aggregation matrix.
@@ -771,6 +796,23 @@ func ptraceFromC(cPtrace *C.struct_quark_ptrace) Ptrace {
 	ptrace.Data = uint64(cPtrace.data)
 
 	return ptrace
+}
+
+func mprotectFromC(cMprotect *C.struct_quark_mprotect) Mprotect {
+	var mprotect Mprotect
+
+	mprotect.VmaStart = uint64(cMprotect.vma_start)
+	mprotect.VmaEnd = uint64(cMprotect.vma_end)
+	mprotect.PrevProt = uint64(cMprotect.prev_prot)
+	mprotect.ReqProt = uint64(cMprotect.req_prot)
+	mprotect.EffectiveProt = uint64(cMprotect.effective_prot)
+	mprotect.Inode = uint64(cMprotect.inode)
+	mprotect.DevMajor = uint32(cMprotect.dev_major)
+	mprotect.DevMinor = uint32(cMprotect.dev_minor)
+	mprotect.FileBacked = cMprotect.file_backed != 0
+	mprotect.Path = C.GoString(cMprotect.path)
+
+	return mprotect
 }
 
 func moduleLoadFromC(cM *C.struct_quark_module_load) ModuleLoad {
