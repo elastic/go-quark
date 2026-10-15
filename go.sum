@@ -19,8 +19,8 @@ github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+
 github.com/stretchr/testify v1.4.0/go.mod h1:j7eGeouHqKxXV5pUuKE4zz7dFj8WfuZ+81PSLYec5m4=
 github.com/stretchr/testify v1.12.1 h1:EuwCh5fleGS7H32xRwO3wRGT7DxrDhLAT6FF8MpWDWE=
 github.com/stretchr/testify v1.12.1/go.mod h1:MDEgiDPPsNp5cuIrHPPCyornHKgEVbtFUmoNlxoYthg=
-go.elastic.co/go-licence-detector v0.11.0 h1:XE+tGhY5f8tdtAczz9xk1uM17qw2iEEHbRUA3Q+lNRg=
-go.elastic.co/go-licence-detector v0.11.0/go.mod h1:S0eXCzealuNbvQXp9gb1xhIEfjOGn7zCS24CRpTQG44=
+go.elastic.co/go-licence-detector v0.11.1 h1:UGw78bu/hzsnL78yfOnSJ16SLL98ZLAiD/tjS3oJWZk=
+go.elastic.co/go-licence-detector v0.11.1/go.mod h1:S0eXCzealuNbvQXp9gb1xhIEfjOGn7zCS24CRpTQG44=
 go.yaml.in/yaml/v3 v3.0.5 h1:N6y/pJk8buWs9NY5ERU2HSMfm+IuD/OtfdAnq6kESPw=
 go.yaml.in/yaml/v3 v3.0.5/go.mod h1:HVTZu1O7/Vkt2N+BFy8Zza+lnLsABggaTM2ZpNIGuKg=
 golang.org/x/mod v0.42.0 h1:ICeL3t2L30ljSPHHxDnR4fqVcBt/zR2zJAb9juavmQg=
