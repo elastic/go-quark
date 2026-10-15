@@ -15,16 +15,19 @@ SHIPPED_GO+= src/go/quark/quark_test.go
 
 all: notice
 
+# Dev tools live in their own module (tools/go.mod) so that their dependencies
+# do not end up in go.mod and NOTICE.txt.
 notice:
 	@echo "Generating NOTICE"
 	go mod tidy
 	go mod download
-	go list -m -json all | go run go.elastic.co/go-licence-detector \
+	go -C tools mod tidy
+	go list -m -json all | go -C tools tool go-licence-detector \
 		-includeIndirect \
-		-rules tools/notice/rules.json \
-		-overrides tools/notice/overrides.json \
-		-noticeTemplate tools/notice/NOTICE.txt.tmpl \
-		-noticeOut NOTICE.txt \
+		-rules $(CURDIR)/tools/notice/rules.json \
+		-overrides $(CURDIR)/tools/notice/overrides.json \
+		-noticeTemplate $(CURDIR)/tools/notice/NOTICE.txt.tmpl \
+		-noticeOut $(CURDIR)/NOTICE.txt \
 		-depsOut ""
 
 check-notice: notice
