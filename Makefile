@@ -28,8 +28,8 @@ notice:
 		-depsOut ""
 
 check-notice: notice
-	@if git diff --name-only | grep "NOTICE.txt"; then \
-		echo "NOTICE.txt differs from committed version; regenerate and commit."; \
+	@if ! git diff --quiet -- NOTICE.txt; then \
+		echo "NOTICE.txt differs from committed version; regenerate and commit."; exit 1; \
 	fi
 
 copy-headers:
