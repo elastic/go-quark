@@ -3,7 +3,7 @@
 steps:
   - label: "Triggering pipelines"
     plugins:
-      monorepo-diff#v1.11.2:
+      monorepo-diff#v1.12.0:
         diff: ".buildkite/diff ${BUILDKITE_COMMIT}"
         wait: true
         watch:
