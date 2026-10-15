@@ -5,7 +5,7 @@ go 1.26.0
 require (
 	github.com/elastic/go-licenser v0.4.2
 	github.com/stretchr/testify v1.12.1
-	go.elastic.co/go-licence-detector v0.11.0
+	go.elastic.co/go-licence-detector v0.11.1
 )
 
 require (
