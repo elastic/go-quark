@@ -2,8 +2,6 @@ github.com/cyphar/filepath-securejoin v0.7.0 h1:s0Y3ITPy6sQn5xt54DuYvTF8hu134ooY
 github.com/cyphar/filepath-securejoin v0.7.0/go.mod h1:ymLGms/u3BYaviIiuKFnUx8EkQEZeK6cInNoAPJA3o4=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
-github.com/elastic/go-licenser v0.4.2 h1:bPbGm8bUd8rxzSswFOqvQh1dAkKGkgAmrPxbUi+Y9+A=
-github.com/elastic/go-licenser v0.4.2/go.mod h1:W8eH6FaZDR8fQGm+7FnVa7MxI1b/6dAqxz+zPB8nm5c=
 github.com/google/go-cmp v0.5.2/go.mod h1:v8dTdLbMG2kIc/vJvl+f65V22dbkXbowE6jgT/gNBxE=
 github.com/google/licenseclassifier v0.0.0-20260218193730-3cfbab2d0e0d h1:roKTmykhQ//C1l5TYw/aaGnO5P/O7oO2gps8LI3GTyU=
 github.com/google/licenseclassifier v0.0.0-20260218193730-3cfbab2d0e0d/go.mod h1:jkYIPv59uiw+1MxTWlqQEKebsUDV1DCXQtBBn5lVzf4=
