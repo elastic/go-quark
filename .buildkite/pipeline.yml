@@ -3,7 +3,7 @@
 steps:
   - label: "Triggering pipelines"
     plugins:
-      monorepo-diff#v1.12.0:
+      monorepo-diff#v1.12.1:
         diff: ".buildkite/diff ${BUILDKITE_COMMIT}"
         wait: true
         watch:
@@ -14,7 +14,7 @@ steps:
               label: "Verify Renovate configuration"
               command: "renovate-config-validator"
               agents:
-                image: "docker.elastic.co/ci-agent-images/pipelib:0.34.0@sha256:bef4e63336cb014d0e320c7a4fa0f9326409927c3217854264e390c2e47ceef3"
+                image: "docker.elastic.co/ci-agent-images/pipelib:0.35.0@sha256:4e521947861821d7607b26b95c141f47e6a8794c6b15e53b1813dafea61a557b"
           # ... otherwise, fall back to the default pipeline
           - path: "**/*"
             config:
