@@ -12,6 +12,7 @@ SHIPPED_HEADERS+= src/quark.h
 
 SHIPPED_GO:= src/go/quark/quark.go
 SHIPPED_GO+= src/go/quark/quark_test.go
+SHIPPED_GO+= src/go/quark/oci_test.go
 
 all: notice
 
