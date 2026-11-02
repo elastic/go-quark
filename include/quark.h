@@ -5,7 +5,7 @@
 #define _QUARK_H_
 
 /* Version is shared between library and utilities */
-#define QUARK_VERSION "0.10"
+#define QUARK_VERSION "0.11a"
 
 /* Misc types */
 #include <sys/socket.h>
@@ -42,6 +42,9 @@ struct quark_sockaddr;
 struct quark_queue;
 struct quark_queue_attr;
 struct quark_queue_stats;
+#ifdef WITH_SYNTHETIC
+struct quark_synthetic_event;
+#endif
 struct quark_ruleset;
 struct quark_rule;
 struct quark_rule_field;
@@ -61,6 +64,10 @@ const struct quark_event *quark_queue_get_event(struct quark_queue *);
 int			 quark_queue_get_epollfd(struct quark_queue *);
 void			 quark_queue_get_stats(struct quark_queue *,
 			     struct quark_queue_stats *);
+#ifdef WITH_SYNTHETIC
+int			 quark_queue_inject(struct quark_queue *,
+			     const struct quark_synthetic_event *);
+#endif
 int			 quark_start_kube_talker(const char *, pid_t *);
 u64			 quark_get_boottime(void);
 int			 quark_dump_process_cache_graph(struct quark_queue *,
@@ -82,6 +89,16 @@ const struct quark_socket *quark_socket_lookup(struct quark_queue *,
 			     struct quark_sockaddr *, struct quark_sockaddr *);
 struct quark_passwd	*quark_passwd_lookup(struct quark_queue *, uid_t);
 struct quark_group	*quark_group_lookup(struct quark_queue *, gid_t);
+const struct quark_pod	*quark_pod_lookup(struct quark_queue *, const char *);
+const struct quark_container *quark_container_lookup(struct quark_queue *,
+			     const char *);
+struct quark_pod	*quark_pod_create(struct quark_queue *, const char *,
+			     const char *, const char *, const char *);
+struct quark_container	*quark_container_create(struct quark_queue *,
+			     const char *, const char *, const char *,
+			     const char *);
+int			 quark_pod_remove(struct quark_queue *, const char *);
+int			 quark_container_remove(struct quark_queue *, const char *);
 void			 quark_ruleset_init(struct quark_ruleset *);
 void			 quark_ruleset_clear(struct quark_ruleset *);
 int			 quark_ruleset_parse(struct quark_ruleset *, FILE *,
@@ -111,7 +128,17 @@ int			 quark_can_aggregate_tty(struct quark_queue *,
 			     struct raw_event *, struct raw_event *);
 
 /* quark.c: These are exported for testing only */
-int	 parse_container_cgroup(const char *, char *, size_t);
+struct cJSON;
+void		 quark_queue_init_bare(struct quark_queue *);
+int		 parse_container_cgroup(const char *, char *, size_t);
+const char	*process_container_id(struct quark_process *);
+void		 process_set_cgroup(struct quark_process *, char **);
+void		 link_container_data(struct quark_queue *,
+		     struct quark_process *);
+int		 kube_handle_pod(struct quark_queue *, struct cJSON *);
+struct quark_pod *quark_pod_get(struct quark_queue *, const char *);
+struct quark_container *quark_container_get(struct quark_queue *,
+		     const char *, const char *);
 
 /* btf.c */
 struct quark_btf_target {
@@ -148,6 +175,11 @@ int			 kprobe_queue_open(struct quark_queue *);
 
 /* nova_queue.c */
 int			 nova_queue_open(struct quark_queue *);
+
+/* synthetic_queue.c */
+#ifdef WITH_SYNTHETIC
+int			 synthetic_queue_open(struct quark_queue *);
+#endif
 
 ssize_t		 qread(int, void *, size_t);
 int		 qwrite(int, const void *, size_t);
@@ -594,6 +626,7 @@ enum gc_type {
 	GC_PROCESS,
 	GC_SOCKET,
 	GC_POD,
+	GC_CONTAINER,
 };
 
 struct gc_link {
@@ -603,9 +636,10 @@ struct gc_link {
 };
 
 /*
- * gc queue, after processes or sockets are are marked for deletion, they still
- * get a grace time of qq->cache_grace_time before removal, this is to allow
- * lookups from users on processes and sockets that have just vanished.
+ * gc queue, after processes, sockets, pods or containers are marked for
+ * deletion, they still get a grace time of qq->cache_grace_time before removal,
+ * this is to allow lookups from users on objects that have just vanished.
+ * Marking is final, nothing unmarks an object once it is in the queue.
  */
 TAILQ_HEAD(gc_queue, gc_link);
 
@@ -621,6 +655,7 @@ struct quark_process {
 	TAILQ_ENTRY(quark_process)	entry_container;
 	/* Always present */
 	u32	 pid;
+	u32	 container_id_parsed;	/* cgroup was parsed into container_id */
 
 #define QUARK_F_PROC		(1 << 0)
 #define QUARK_F_EXIT		(1 << 1)
@@ -662,6 +697,7 @@ struct quark_process {
 	char	*cmdline;
 	char	*cwd;
 	char	*cgroup;
+	char	*container_id;
 	struct quark_container *container;
 	char	*env;
 	size_t	 env_len;
@@ -711,9 +747,13 @@ RB_HEAD(label_tree, label_node);
 RB_PROTOTYPE(label_tree, label_node, entry, label_node_cmp);
 
 /*
- * A container's lifecycle is tied to its parent quark_pod.
+ * A container is removed when its parent quark_pod is removed, or on its own
+ * through quark_container_remove(). Either way it stays valid for the gc grace
+ * time and is then freed, possibly while its pod is still alive. A container
+ * without a pod has a NULL pod backpointer.
  */
 struct quark_container {
+	struct gc_link			 gc;		/* must be first */
 	RB_ENTRY(quark_container)	 entry_qkube;	/* our ""global"" linkage */
 	RB_ENTRY(quark_container)	 entry_pod;	/* our linkage inside a quark_pod */
 	TAILQ_HEAD(, quark_process)	 processes;	/* processes in this container */
@@ -730,10 +770,9 @@ struct quark_container {
 };
 
 /*
- * A quark_pod holds multiple containters in pod_containters.
- * The same containers are also linked in containters_by_id inside quark_kube.
- * This is to allow a search by container_id, which then can follow the pod
- * backpointer, to finally find the pod of a containter_id.
+ * A quark_pod holds its containers in pod_containers.
+ * All containers are indexed by container_id in quark_queue, including those
+ * without a pod. A container's pod backpointer identifies its parent, if any.
  */
 RB_HEAD(pod_containers, quark_container);
 RB_HEAD(container_by_id, quark_container);
@@ -755,7 +794,7 @@ struct quark_pod {
 };
 
 /*
- * A quark_pod indexed by uid, this is the main data structure for quark_kube{}.
+ * Pods indexed by uid in quark_queue.
  */
 RB_HEAD(pod_by_uid, quark_pod);
 
@@ -784,7 +823,6 @@ struct quark_kube {
 	size_t			 buf_r;			/* read pointer */
 	size_t			 buf_len;		/* total length */
 	struct quark_kube_node	 node;			/* node we're running on */
-	struct pod_by_uid	 pod_by_uid;		/* uid comes from json */
 };
 
 /*
@@ -894,7 +932,7 @@ struct quark_queue_stats {
 	u64	lost;
 	u64	garbage_collections;
 	u64	stalls;     /* stalled perf rings due to corruption, only for QQ_KPROBE */
-	int	backend;    /* active backend, QQ_EBPF or QQ_KPROBE */
+	int	backend;    /* active backend, one of QQ_{EBPF,KPROBE,NOVA,SYNTHETIC} */
 	/* TODO u64    peak_nodes; */
 };
 
@@ -922,6 +960,9 @@ struct quark_queue_attr {
 #define QQ_GETPID		(1 << 13)
 #define QQ_NOVA			(1 << 14)
 #define QQ_MPROTECT		(1 << 15)
+#ifdef WITH_SYNTHETIC
+#define QQ_SYNTHETIC		(1 << 16)
+#endif
 	int			 flags;
 	int			 max_length;
 	int			 cache_grace_time;	/* in ms */
@@ -930,6 +971,84 @@ struct quark_queue_attr {
 	int			 kubefd;		/* quark-kube-talker pipe, -1 disables */
 	struct quark_ruleset	*ruleset;		/* active ruleset */
 };
+
+#ifdef WITH_SYNTHETIC
+/*
+ * Synthetic input enters Quark immediately before raw_event_insert().  It is
+ * benchmark/test support: injection is synchronous and queues using it are
+ * not thread-safe.  It deliberately excludes probes, transport, decoding,
+ * and BPF-side filtering.  All pointed-to data is copied by
+ * quark_queue_inject().
+ */
+enum quark_synthetic_event_kind {
+	QUARK_SYNTHETIC_INVALID,
+	QUARK_SYNTHETIC_FORK,
+	QUARK_SYNTHETIC_EXEC,
+	QUARK_SYNTHETIC_EXIT,
+	QUARK_SYNTHETIC_SETSID,
+	QUARK_SYNTHETIC_FILE_CREATE,
+	QUARK_SYNTHETIC_FILE_MODIFY,
+	QUARK_SYNTHETIC_FILE_DELETE,
+};
+
+struct quark_synthetic_process {
+	u32		 pid;
+	u32		 tid;
+	u32		 ppid;
+	u32		 pgid;
+	u32		 sid;
+	u64		 start_boottime;
+	u32		 uid;
+	u32		 gid;
+	u32		 suid;
+	u32		 sgid;
+	u32		 euid;
+	u32		 egid;
+	u64		 cap_inheritable;
+	u64		 cap_permitted;
+	u64		 cap_effective;
+	u64		 cap_bset;
+	u64		 cap_ambient;
+	u32		 tty_major;
+	u32		 tty_minor;
+	u32		 uts_inonum;
+	u32		 ipc_inonum;
+	u32		 mnt_inonum;
+	u32		 net_inonum;
+	s32		 exit_code;
+	u64		 exit_time_event;
+	const char	*comm;
+	const char	*cwd;
+	const char	*cgroup;
+	const char	*argv;		/* NUL-delimited, final byte must be NUL */
+	size_t		 argv_len;
+	const char	*env;		/* NUL-delimited, final byte must be NUL */
+	size_t		 env_len;
+	const char	*executable;
+};
+
+struct quark_synthetic_file {
+	const char	*path;
+	const char	*old_path;
+	const char	*sym_target;
+	u64		 inode;
+	u64		 atime;
+	u64		 mtime;
+	u64		 ctime;
+	u64		 size;
+	u32		 mode;
+	u32		 uid;
+	u32		 gid;
+	u32		 change_mask;	/* mask of QUARK_FILE_CH_* */
+};
+
+struct quark_synthetic_event {
+	enum quark_synthetic_event_kind	 kind;
+	u64				 time;	/* CLOCK_BOOTTIME nanoseconds */
+	struct quark_synthetic_process	 process;
+	struct quark_synthetic_file	 file;
+};
+#endif
 
 /*
  * Quark Queue (qq) is the main structure the user interacts with, it acts as
@@ -944,6 +1063,7 @@ struct quark_queue {
 	struct passwd_by_uid		 passwd_by_uid;
 	struct group_by_gid		 group_by_gid;
 	struct container_by_id		 container_by_id;	/* all known containers */
+	struct pod_by_uid		 pod_by_uid;		/* all known pods */
 	struct quark_sysinfo		 sysinfo;
 	struct quark_event		 event_storage;
 	struct quark_queue_stats	 stats;

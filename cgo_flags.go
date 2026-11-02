@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2024-2026 Elastic NV
 
-//go:build linux && (amd64 || arm64)
+//go:build linux && (amd64 || arm64) && !quark_synthetic
 
 package quark
 
@@ -15,7 +15,9 @@ package quark
 // All cgo CFLAGS in a package apply to every C preamble in the package, and
 // all LDFLAGS are concatenated at link time, so these directives take effect
 // for quark.go even though they are declared in a separate file. The build
-// constraint above must match the one on quark.go.
+// constraint above must match the one on quark.go, minus quark_synthetic:
+// with that tag cgo_flags_synthetic.go takes over and links the synthetic
+// archive instead, so a production build never links synthetic code.
 
 /*
 #cgo CFLAGS: -I${SRCDIR}/include

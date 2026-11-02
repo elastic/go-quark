@@ -12,6 +12,9 @@ SHIPPED_HEADERS+= src/quark.h
 
 SHIPPED_GO:= src/go/quark/quark.go
 SHIPPED_GO+= src/go/quark/quark_test.go
+SHIPPED_GO+= src/go/quark/oci_test.go
+SHIPPED_GO+= src/go/quark/synthetic.go
+SHIPPED_GO+= src/go/quark/synthetic_test.go
 
 all: notice
 
@@ -39,9 +42,10 @@ copy-headers:
 	cp $(SHIPPED_HEADERS) include/
 
 # The Go sources live in the quark repo (src/go/quark) and are mirrored here
-# verbatim. The cgo build flags are not part of quark.go: each repository keeps
-# its own flags file (cgo_flags.go here, pointing at include/ and the prebuilt
-# per-arch libquark_big_$(ARCH).a).
+# verbatim. The cgo build flags are not part of them: each repository keeps
+# its own flags files. Here cgo_flags.go points at include/ and the prebuilt
+# per-arch libquark_big_$(ARCH).a, and cgo_flags_synthetic.go, selected by the
+# quark_synthetic build tag, links libquark_big_synthetic_$(ARCH).a instead.
 copy-go:
 	@if grep -n '^#cgo ' $(SHIPPED_GO); then \
 		echo "copy-go: upstream Go sources still carry cgo directives; they belong in a separate flags file (see cgo_flags.go)"; exit 1; \
@@ -66,4 +70,19 @@ update-quark:
 	$(MAKE) -C src centos7 WITH_BTFHUB=y NO_GO=y
 	mv src/libquark_big.a libquark_big_$(ARCH).a
 
-.PHONY: notice check-notice copy-headers copy-go check-fmt update-quark
+# Builds libquark_big_synthetic_$(ARCH).a, the archive with the probe-free
+# synthetic queue used by tests and benchmarks (Go build tag quark_synthetic).
+# Production builds never link it. Run update-quark first: this target does
+# not reset src/ or copy the Go sources again, so both archives come from the
+# same quark revision.
+update-quark-synthetic:
+	$(MAKE) -C src centos7 WITH_BTFHUB=y NO_GO=y WITH_SYNTHETIC=1
+	mv src/libquark_big.a libquark_big_synthetic_$(ARCH).a
+
+# Links both archives without running the root-only quark tests.
+test-quark-libraries:
+	go test -run '^$$' .
+	go test -tags=quark_synthetic -run '^TestSynthetic' .
+
+.PHONY: notice check-notice copy-headers copy-go check-fmt update-quark \
+	update-quark-synthetic test-quark-libraries
