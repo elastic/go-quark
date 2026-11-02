@@ -30,7 +30,7 @@ steps:
     key: commit
     command: "./.buildkite/scripts/commit.sh"
     agents:
-     image: "docker.elastic.co/ci-agent-images/sec-linux-platform/cloud-defend-builder:latest@sha256:776846793981cf6c453771e570bc65495bd37c26fef29f7acfd00549ffca62aa"
+     image: "docker.elastic.co/ci-agent-images/sec-linux-platform/cloud-defend-builder:latest@sha256:d34b858f0ad1a2d9f8a4b659a348340c23827dbedb0c1756570d5c426c611a49"
      cpu: "1"
      memory: "1Gi"
 
@@ -38,7 +38,7 @@ steps:
     key: check-notice
     command: "make check-notice"
     agents:
-     image: "docker.elastic.co/ci-agent-images/sec-linux-platform/cloud-defend-builder:latest@sha256:776846793981cf6c453771e570bc65495bd37c26fef29f7acfd00549ffca62aa"
+     image: "docker.elastic.co/ci-agent-images/sec-linux-platform/cloud-defend-builder:latest@sha256:d34b858f0ad1a2d9f8a4b659a348340c23827dbedb0c1756570d5c426c611a49"
      cpu: "1"
      memory: "1Gi"
 
@@ -46,6 +46,6 @@ steps:
     key: check-fmt
     command: "make check-fmt"
     agents:
-     image: "docker.elastic.co/ci-agent-images/sec-linux-platform/cloud-defend-builder:latest@sha256:776846793981cf6c453771e570bc65495bd37c26fef29f7acfd00549ffca62aa"
+     image: "docker.elastic.co/ci-agent-images/sec-linux-platform/cloud-defend-builder:latest@sha256:d34b858f0ad1a2d9f8a4b659a348340c23827dbedb0c1756570d5c426c611a49"
      cpu: "1"
      memory: "1Gi"
