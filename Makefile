@@ -9,6 +9,7 @@ SHIPPED_HEADERS+= src/freebsd_queue.h
 SHIPPED_HEADERS+= src/freebsd_tree.h
 SHIPPED_HEADERS+= src/nova.h
 SHIPPED_HEADERS+= src/quark.h
+SHIPPED_HEADERS+= src/ruleset.h
 
 SHIPPED_GO:= src/go/quark/quark.go
 SHIPPED_GO+= src/go/quark/quark_test.go
