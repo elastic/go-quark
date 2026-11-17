@@ -5,7 +5,7 @@
 #define _QUARK_H_
 
 /* Version is shared between library and utilities */
-#define QUARK_VERSION "0.11"
+#define QUARK_VERSION "0.12a"
 
 /* Misc types */
 #include <sys/socket.h>
@@ -21,6 +21,9 @@
 
 /* Shared quark_rule definitions are in nova.h */
 #include "nova.h"
+
+/* Rule engine, uses nova.h */
+#include "ruleset.h"
 
 /* Misc */
 #ifndef ALIGN_UP
@@ -42,9 +45,6 @@ struct quark_sockaddr;
 struct quark_queue;
 struct quark_queue_attr;
 struct quark_queue_stats;
-struct quark_ruleset;
-struct quark_rule;
-struct quark_rule_field;
 typedef int (*quark_can_aggregate_fn)(struct quark_queue *,
     struct raw_event *, struct raw_event *);
 struct raw_event	*raw_event_alloc(int);
@@ -92,16 +92,6 @@ struct quark_container	*quark_container_create(struct quark_queue *,
 			     const char *);
 int			 quark_pod_remove(struct quark_queue *, const char *);
 int			 quark_container_remove(struct quark_queue *, const char *);
-void			 quark_ruleset_init(struct quark_ruleset *);
-void			 quark_ruleset_clear(struct quark_ruleset *);
-int			 quark_ruleset_parse(struct quark_ruleset *, FILE *,
-			     char *, size_t);
-struct quark_rule	*quark_ruleset_append_rule(struct quark_ruleset *,
-			     int, u64);
-int			 quark_rule_match_field(struct quark_rule *,
-			     struct quark_rule_field);
-struct quark_rule	*quark_ruleset_match(struct quark_ruleset *,
-			     struct quark_event *);
 int			 quark_queue_set_agg_matrix(struct quark_queue *,
 			     int, int, quark_can_aggregate_fn);
 /* Can aggregate only one value (sits alone) */
@@ -124,6 +114,7 @@ int			 quark_can_aggregate_tty(struct quark_queue *,
 struct cJSON;
 void		 quark_queue_init_bare(struct quark_queue *);
 int		 parse_container_cgroup(const char *, char *, size_t);
+int		 cgroup_is_host(const char *);
 const char	*process_container_id(struct quark_process *);
 void		 process_set_cgroup(struct quark_process *, char **);
 void		 link_container_data(struct quark_queue *,
@@ -278,6 +269,7 @@ enum raw_types {
 	RAW_TTY,
 	RAW_GETPID,
 	RAW_MPROTECT,
+	RAW_BPF,
 	RAW_NUM_TYPES		/* must be last */
 };
 
@@ -375,6 +367,12 @@ enum quark_packet_origin {
 	QUARK_PACKET_ORIGIN_DNS,
 };
 
+/*
+ * data holds the first cap_len bytes of the datagram, starting at the IPv4 or
+ * IPv6 header as it was on the wire, which for a dual-stack socket may not
+ * match the socket family. An IPv6 header may be followed by extension
+ * headers before UDP.
+ */
 struct quark_packet {
 	enum quark_packet_direction	direction;
 	enum quark_packet_origin	origin;
@@ -450,6 +448,31 @@ struct raw_mprotect {
 	struct quark_mprotect quark_mprotect;
 };
 
+/* Independently valid copied request metadata and successful object identity. */
+#define QUARK_BPF_PROG          2
+#define QUARK_BPF_NAME_LEN      16
+#define QUARK_BPF_VALID_ATTR    (1U << 0)
+#define QUARK_BPF_VALID_OBJECT  (1U << 1)
+struct quark_bpf {
+	u64	 start_time_ns; /* actor process start, CLOCK_MONOTONIC */
+	u32	 tgid;          /* actor process, in the host pid namespace */
+	s64	 ret;           /* operation result, fd or negative errno */
+	u32	 cmd;           /* normalized enum bpf_cmd */
+	u32	 tid;           /* invoking thread, in the host pid namespace */
+	u32	 valid;         /* QUARK_BPF_VALID_* */
+	u32	 kind;          /* QUARK_BPF_PROG when object is valid */
+	u32	 id;            /* successful program's kernel id */
+	u32	 type;          /* object type, else copied requested type */
+	u32	 attach_type;   /* copied expected_attach_type */
+	u32	 flags;         /* copied prog_flags */
+	u32	 insn_cnt;      /* requested count, before verifier rewriting */
+	char	 name[QUARK_BPF_NAME_LEN]; /* copied requested name */
+};
+
+struct raw_bpf {
+	struct quark_bpf quark_bpf;
+};
+
 struct quark_module_load {
 	char *name;
 	char *version;
@@ -523,6 +546,7 @@ struct raw_event {
 		struct raw_file			file;
 		struct raw_ptrace		ptrace;
 		struct raw_mprotect		mprotect;
+		struct raw_bpf			bpf;
 		struct raw_module_load		module_load;
 		struct raw_shm			shm;
 		struct raw_tty			tty;
@@ -560,6 +584,7 @@ struct quark_event {
 #define QUARK_EV_TTY			(1 << 13)
 #define QUARK_EV_GETPID			(1 << 14)
 #define QUARK_EV_MPROTECT		(1 << 15)
+#define QUARK_EV_BPF			(1 << 16)
 	u64				 events;
 	u64				 time;
 	const struct quark_process	*process;
@@ -569,6 +594,7 @@ struct quark_event {
 	struct quark_file		*file;
 	struct quark_ptrace		 ptrace;
 	struct quark_mprotect		 mprotect;
+	struct quark_bpf		 bpf;
 	struct quark_module_load	*module_load;
 	struct quark_shm		*shm;
 	struct quark_tty		*tty;
@@ -576,6 +602,8 @@ struct quark_event {
 #define QUARK_ID_CHANGE_SETUID		(1 << 1)
 #define QUARK_ID_CHANGE_SETGID		(1 << 2)
 	u32				 id_change;
+	u64				 tags;		/* bits of quark_ruleset.tag_names */
+	const struct quark_ruleset	*ruleset;	/* that set tags, or NULL */
 };
 
 /*
@@ -837,56 +865,6 @@ struct quark_group {
 };
 
 /*
- * post points into pre
- */
-struct quark_wild {
-	char	*pre;		/* user input, like foo*bar */
-	size_t	 pre_len;
-	char	*post;
-	size_t	 post_len;
-};
-
-/* Rule Field */
-struct quark_rule_field {
-	u64		 code;
-	union {
-		u32			 pid;
-		u64			 poison_tag;
-		struct quark_wild	 wild;
-		u32			 id;
-		char			 comm[16];
-	};
-};
-
-struct quark_rule {
-	struct quark_rule_field	*fields;	/* fields that must match */
-	size_t			 n_fields;	/* number of fields */
-	int			 action;	/* QUARK_RA_* */
-	u64			 poison_tag;	/* tag used for SETTING poison */
-	u64			 evals;		/* counter */
-	u64			 hits;		/* counter */
-	u_int			 number;	/* starting from 0 */
-};
-
-struct quark_ruleset {
-	struct quark_rule	*rules;
-	size_t			 n_rules;
-};
-
-struct quark_parser_ctx {
-	struct quark_ruleset	 *ruleset;		/* parser output */
-	struct quark_rule	 *cur_rule;		/* current rule we're processing */
-	FILE			 *in;			/* input file */
-	char			**allocs;		/* arena for parser allocations */
-	size_t			  n_allocs;		/* size of the arena */
-	int			  sentnl;		/* if we sent nl uppon EOF */
-	u_long			  lineno;		/* line number */
-	u_long			  colno;		/* column number */
-	int			  error;		/* if the parser errored out */
-	char			  errorbuf[1024];	/* the parser error */
-};
-
-/*
  * General system information, static and stored in quark_queue.
  */
 struct quark_sysinfo {
@@ -919,7 +897,11 @@ struct quark_queue_stats {
 	u64	non_aggregations;
 	u64	lost;
 	u64	garbage_collections;
+	u64	bpf_state_lost; /* discarded/rejected BPF invocation frames */
+	u64	bpf_metadata_lost; /* metadata capture failed for an operation */
+	u64	bpf_retprobe_missed; /* tracefs misses; may overlap state_lost */
 	u64	stalls;     /* stalled perf rings due to corruption, only for QQ_KPROBE */
+	int	bpf_retprobe_stats_valid; /* last miss-count refresh succeeded */
 	int	backend;    /* active backend, QQ_EBPF or QQ_KPROBE */
 	/* TODO u64    peak_nodes; */
 };
